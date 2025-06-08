@@ -7,6 +7,8 @@ import cz.muni.fi.pb162.hw01.cmd.Messages;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Application class represents the command line interface of this application.
@@ -53,190 +55,104 @@ public class Application {
      * Application runtime logic
      */
     private void run() {
-        boolean end = false;                                        //variable to determine whether the game os over
+        int turnCounter = 1;
+        Game game = new Game(size, win, players);
 
-        int round = 1;                                              //variable that represents rounds of the game
-        int turn = 1;                                               //an index of the array of playing boards
-        int rewind;                                                 //a rewind number
-        int turnTwo = 0;                                            //an amount of player turns
-        int x = 0;                                                  //x coordinate of player's mark
-        int y = 0;                                                  //y coordinate of player's mark
-        int[][] grid = new int[size][size];                         //An array consisting positions of players' marks
+        System.out.printf(Messages.TURN_COUNTER, turnCounter);
+        System.out.println(game.getPlayingBoard().format(game.getPlayingBoard()));
 
-        String input;
-        String quit;
-        String[] playerMarks = players.split("");
+        while (turnCounter <= (size * size) && !game.getGameOver()) {
 
-        List<Boards> formattedBoards = new ArrayList<>();           //A list of playing boards
-        List<Coordinates> coordinates = new ArrayList<>();          //A list of coordinates
+            for (Character player : players.toCharArray()) {
 
-        System.out.printf(Messages.TURN_COUNTER, round);
-        formattedBoards.add(new Boards(size, new StringBuilder()));
-        formattedBoards.get(0).format(formattedBoards.get(0));
-        System.out.println(formattedBoards.get(0).getFormattedBoard().toString());
-
-        while (!end) {
-            for (int i = 0; i < playerMarks.length; i++) {
-                while (true) {
-
-                    System.out.printf(Messages.TURN_PROMPT, playerMarks[i]);
-                    input = Utils.readLineFromStdIn();
-
-                    try {
-                        rewind = Integer.parseInt(input.split("<", 3)[2]);
-                        if (rewind <= history && rewind < formattedBoards.size()) {
-                            for (int j = 0; j < rewind; j++) {
-                                grid[coordinates.get(coordinates.size() - 1).getX()]
-                                        [coordinates.get(coordinates.size() - 1).getY()] = 0;
-                                formattedBoards.remove(formattedBoards.size() - 1);
-                                coordinates.remove(coordinates.size() - 1);
-                            }
-                            turnTwo++;
-                            System.out.println(Messages.TURN_DELIMITER);
-                            turn -= rewind;
-                            break;
-                        } else {
-                            System.out.println(Messages.TURN_DELIMITER);
-                            System.out.println(Messages.ERROR_REWIND);
-                        }
-
-                    } catch (Throwable o) {
-                        try {
-                            x = Integer.parseInt(input.split(" ", 2)[0]);
-                            y = Integer.parseInt(input.split(" ", 2)[1]);
-                            if (x < size && y < size) {
-                                if (grid[x][y] == 0) {
-                                    coordinates.add(new Coordinates(x, y));
-                                    grid[x][y] = i + 1;
-                                    formattedBoards.add(new Boards(size, new StringBuilder()));
-                                    formattedBoards.get(turn).getFormattedBoard().
-                                            append(formattedBoards.get(turn - 1).getFormattedBoard());
-                                    formattedBoards.get(turn).getFormattedBoard().
-                                            replace(x * (2 * size + 2) + y * 2 + 1,
-                                                    x * (2 * size + 2) + y * 2 + 2, playerMarks[i]); //places players mark
-                                    System.out.println(Messages.TURN_DELIMITER);
-                                    turn++;
-                                    turnTwo++;
-                                    break;
-                                }
-                            }
-                            System.out.println(Messages.TURN_DELIMITER);
-                            System.out.println(Messages.ERROR_ILLEGAL_PLAY);
-
-                        } catch (Throwable p) {
-                            try {
-                                quit = input.split(":", 2)[1];
-                                if (!quit.equals("q")) {
-                                    System.out.println(Messages.TURN_DELIMITER);
-                                    System.out.println(Messages.ERROR_INVALID_COMMAND);
-                                } else {
-                                    System.out.println(Messages.TURN_DELIMITER);
-                                    end = true;
-                                    break;
-                                }
-                            } catch (Throwable k) {
-                                System.out.println(Messages.TURN_DELIMITER);
-                                System.out.println(Messages.ERROR_INVALID_COMMAND);
-                            }
-                        }
-                    }
+                System.out.println("\n");
+                boolean isValidInput = false;
+                while (!isValidInput) {
+                    System.out.printf(Messages.TURN_PROMPT, player);
+                    String playerInput = Utils.readLineFromStdIn();
+                    System.out.println(Messages.TURN_DELIMITER);
+                    isValidInput = handleInput(player, playerInput, game, history);
                 }
-                if (checkWin(x, y, size, grid, (i + 1), win)) {
-                    System.out.printf(Messages.GAME_OVER, turnTwo);
-                    System.out.printf(Messages.GAME_WINNER + "\n", playerMarks[i]);
-                    System.out.println(formattedBoards.get(formattedBoards.size() - 1).getFormattedBoard().toString());
-                    end = true;
+
+                game.checkWin();
+                if (game.getGameOver()){
                     break;
                 }
-                if (end || isFull(grid, size)) {
-                    System.out.printf(Messages.GAME_OVER, turnTwo);
-                    System.out.println(formattedBoards.get(formattedBoards.size() - 1).getFormattedBoard().toString());
-                    end = true;
-                    break;
-                }
-                round++;
-                System.out.printf(Messages.TURN_COUNTER, round);
-                System.out.println(formattedBoards.get(turn - 1).getFormattedBoard().toString());
-
+                turnCounter++;
+                System.out.printf(Messages.TURN_COUNTER, turnCounter);
+                System.out.println(game.getPlayingBoard().format(game.getPlayingBoard()));
             }
+        }
+        System.out.printf(Messages.GAME_OVER, turnCounter);
+        System.out.println(game.getPlayingBoard().format(game.getPlayingBoard()));
+    }
+
+    private static boolean handleInput(Character player, String playerInput, Game game, int history) {
+        String playCommandRegex =  "^\\d+ \\d+$";
+        String rewindCommandRegex = "^<<\\d+$";
+        Pattern playCommandPattern = Pattern.compile(playCommandRegex);
+        Pattern rewindCommandPattern = Pattern.compile(rewindCommandRegex);
+        Matcher playCommandMatcher = playCommandPattern.matcher(playerInput);
+        Matcher rewindCommandMatcher = rewindCommandPattern.matcher(playerInput);
+
+        if (playCommandMatcher.matches()){
+            return handlePlayCommand(player, playerInput, game);
+        } else if (rewindCommandMatcher.matches()) {
+            return handleRewindCommand(playerInput, history, game);
+        } else if (playerInput.equals(":q")){
+            game.setGameOver(true);
+            return true;
+        }else {
+            System.out.println(Messages.ERROR_INVALID_COMMAND);
+            return false;
         }
     }
 
     /**
-     * A method that determines whether the playing board is full.
-     *
-     * @param grid The playing board aka playing grid.
-     * @param size Size of the playing board.
-     * @return True when the playing board is full, otherwise false.
+     * A method to handle play command
+     * @param player player's symbol.
+     * @param playerInput player's command prompt (in this case coordinates).
+     * @param game an instance of a game.
+     * @return true if player's prompt is alright according to the game's rules.
      */
-    private static boolean isFull(int[][] grid, int size) {
-        boolean full = true;
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                full = grid[i][j] != 0 && full;
-            }
+    private static boolean handlePlayCommand(Character player, String playerInput, Game game) {
+        Coordinates coordinates = new Coordinates(playerInput);
+        if (isWithinBounds(coordinates, game.getSize()) && isEmptyCell(coordinates, game)){
+            game.getPlayingBoard().setPlayingGrid(coordinates, player);
+            game.getTurnHistory().push(new PlayerTurn(player, coordinates));
+            return true;
+        } else {
+            System.out.println(Messages.ERROR_ILLEGAL_PLAY);
+            return false;
         }
-        return full;
     }
 
     /**
-     * A method that determines whether a player won.
-     *
-     * @param x      X coordinate of the mark placed by a player.
-     * @param y      Y coordinate of the mark placed by a player.
-     * @param size   Size of the board.
-     * @param board  An array consisting positions of players' marks.
-     * @param player Numeric representation of a player.
-     * @param win    An amount of marks in a row to win.
-     * @return True when enough marks in a row, otherwise false.
+     * a method to check whether coordinates are withing the playing board area.
+     * @param coordinates
+     * @param size
+     * @return
      */
-    private static boolean checkWin(int x, int y, int size, int[][] board, int player, int win) {
-        int horizontalCount = 0;
-        int verticalCount = 0;
-        int diagonalCount = 0;
-        int inverseDiagonalCount = -1;
+    private static boolean isWithinBounds(Coordinates coordinates, int size) {
+        return coordinates.getX() <= size && coordinates.getY() <= size &&
+                coordinates.getX() > 0 && coordinates.getY() > 0;
+    }
 
-        for (int i = 0; i < size; i++) {
-            if (board[x][i] == player) {
-                horizontalCount++;
+    private static boolean isEmptyCell(Coordinates coordinates, Game game){
+        return game.getPlayingBoard().getPlayingGrid()[coordinates.getY() - 1][coordinates.getX() - 1] == null;
+    }
+
+    private static boolean handleRewindCommand(String playerInput, int history, Game game) {
+        int rewindNumber = Integer.parseInt(playerInput.replaceAll("<", ""));
+        if (rewindNumber > 0 && rewindNumber <= history && rewindNumber <= game.getTurnHistory().size()) {
+            for (int i = 0; i < rewindNumber; i++){
+                PlayerTurn playerTurn = game.getTurnHistory().pop();
+                game.getPlayingBoard().setPlayingGrid(playerTurn.getCoordinates(), null);
             }
-            if (board[i][y] == player) {
-                verticalCount++;
-            }
+            return true;
+        } else {
+            System.out.println(Messages.ERROR_REWIND);
+            return false;
         }
-
-        int k = 1;
-        while (x - k >= 0 && y - k >= 0) {
-            if (board[x - k][y - k] == player) {
-                diagonalCount++;
-            }
-            k++;
-        }
-
-        k = 0;
-        while (x + k < size && y + k < size) {
-            if (board[x + k][y + k] == player) {
-                diagonalCount++;
-            }
-            k++;
-        }
-
-        k = 0;
-        while (x + k < size && y - k >= 0) {
-            if (board[x + k][y - k] == player) {
-                inverseDiagonalCount++;
-            }
-            k++;
-        }
-
-        k = 0;
-        while (x - k >= 0 && y + k < size) {
-            if (board[x - k][y + k] == player) {
-                inverseDiagonalCount++;
-            }
-            k++;
-        }
-
-        return diagonalCount == win || inverseDiagonalCount == win || horizontalCount == win || verticalCount == win;
     }
 }

@@ -15,9 +15,10 @@ public class Coordinates {
      * @param x Coordinate on x axis.
      * @param y Coordinate on y axis.
      */
-    public Coordinates(int x, int y) {
-        this.x = x;
-        this.y = y;
+    public Coordinates(String playerInput) {
+        String[] coordinates = playerInput.split(" ");
+        this.x = Integer.parseInt(coordinates[0]);
+        this.y = Integer.parseInt(coordinates[1]);
     }
 
     public int getX() {

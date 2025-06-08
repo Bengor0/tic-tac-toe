@@ -10,5 +10,5 @@ public interface BoardFormatter {
      * @param board board to be formatted
      * @return string representation of given board
      */
-    String format(Boards board);
+    String format(Board board);
 }
